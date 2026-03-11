@@ -6,10 +6,13 @@ import { requireAuth } from '../middleware/auth.middleware.js';
 import { mcqResponseFormat } from '../utils/openai/mcq.schema.js';
 import { structuredQuestionResponseFormat } from '../utils/openai/structured-question.schema.js';
 import { testBlueprintResponseFormat } from '../utils/openai/test-blueprint.schema.js';
-import { BASE_CONTEXT, getMCQPrompt, getStructuredPrompt } from '../utils/openai/prompts.js';
+import { BASE_CONTEXT, getMCQPrompt, getStructuredPrompt, getVisualAssetPrompt } from '../utils/openai/prompts.js';
 import { QuestionService } from '../services/question.service.js';
 
+import { MCQ } from '../models/mcq.model.js';
+import { StructuredQuestion } from '../models/structured-question.model.js';
 
+import cloudinary from '../utils/cloudinary/cloudinary.js';
 
 const router = Router();
 
@@ -121,6 +124,167 @@ router.post('/blueprint', requireAuth, async (req: Request, res: Response): Prom
 // Helper function for exponential backoff
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const uploadToCloudinary = async (temporaryImageUrl: string): Promise<string | null> => {
+  try {
+    // Cloudinary can accept a remote URL directly
+    const uploadResult = await cloudinary.uploader.upload(temporaryImageUrl, {
+      folder: 'ib-science-generator/assets', // Keeps your cloud storage organized
+      resource_type: 'image',
+    });
+    
+    return uploadResult.secure_url; // This is the permanent link
+  } catch (error) {
+    console.error("Cloudinary Upload Error:", error);
+    return null;
+  }
+};
+
+// Helper to process images in the background and generate GPT-Image prompts
+const processVisualAssetsInBackground = async (savedQuestionObj: Record<string, any>, sendEvent: (event: string, data: any) => void) => {
+  
+  // 1. Re-fetch the active Mongoose document
+  let dbDocument;
+  if (savedQuestionObj.Question_Type === "MCQ") {
+    dbDocument = await MCQ.findById(savedQuestionObj._id);
+  } else if (savedQuestionObj.Question_Type === "Structured_Question") {
+    dbDocument = await StructuredQuestion.findById(savedQuestionObj._id);
+  }
+
+  if (!dbDocument) {
+    console.error(`Could not find document ${savedQuestionObj._id} for background processing.`);
+    return;
+  }
+
+  let needsUpdate = false;
+
+  const processAssetsArray = async (assets: any[]) => {
+    if (!assets || !Array.isArray(assets)) return;
+    
+    for (const asset of assets) {
+      if (asset.type === 'image') {
+        try {
+          sendEvent('image_processing_started', { 
+            questionId: dbDocument._id,
+            message: 'Generating image prompt...' 
+          });
+
+          // Generate the optimized prompt
+          const promptResponse = await azureClient.chat.completions.create({
+            model: process.env.AZURE_OPENAI_MODEL || "gpt-5-mini", 
+            messages: [
+              { role: "system", content: getVisualAssetPrompt(asset.image_data) }
+            ]
+          });
+          
+          const optimizedPrompt = promptResponse.choices[0]?.message.content?.trim();
+          
+          // 2. Attach the prompt directly to the Mongoose document's asset
+          asset.generated_prompt = optimizedPrompt; 
+          asset.image_data = undefined; // Placeholder
+          needsUpdate = true;
+
+          sendEvent('image_prompt_ready', {
+            questionId: dbDocument._id,
+            generated_prompt: optimizedPrompt
+          });
+
+          try {
+            sendEvent('image_generation_started', { 
+                questionId: dbDocument._id,
+                message: 'Generating final image...' 
+            });
+
+            // 1. Generate the Image (Uncomment when gpt-image-1-mini is available) 
+            /*
+            const imageResponse = await azureClient.images.generate({
+                model: "gpt-image-1-mini", 
+                prompt: optimizedPrompt,
+                n: 1,
+                size: "480x480"
+            });
+            const tempImageUrl = imageResponse.data[0].url;
+            */
+
+            // MOCK FOR NOW: Use a placeholder to test your Cloudinary upload flow immediately
+            const tempImageUrl = "https://via.placeholder.com/1024";
+
+            if (!tempImageUrl) throw new Error("No image URL returned from API");
+
+            sendEvent('image_upload_started', { 
+                questionId: dbDocument._id,
+                message: 'Uploading to secure cloud storage...' 
+            });
+
+            // 2. Upload to Cloudinary to get a permanent URL 
+            const permanentUrl = await uploadToCloudinary(tempImageUrl);
+
+            if (!permanentUrl) throw new Error("Cloudinary upload failed");
+
+            // 3. Update the Mongoose document with the permanent URL 
+            asset.image_data = permanentUrl; 
+            needsUpdate = true;
+
+            // 4. Notify frontend that the final image is ready to render 
+            sendEvent('image_ready', {
+                questionId: dbDocument._id,
+                imageUrl: permanentUrl
+            });
+
+            } catch (imageError) {
+            console.error("Image generation or upload failed:", imageError);
+            sendEvent('error', { 
+                questionId: dbDocument._id,
+                message: 'Failed to generate or upload the final image.'
+            });
+            
+            // Graceful failure: leave the text prompt intact, set image_data to null.
+            // (Your newly updated Mongoose schema will accept this!)
+            asset.image_data = null;
+            needsUpdate = true;
+            }
+
+        } catch (error) {
+          console.error("Failed to process visual asset:", error);
+          asset.generated_prompt = "Error generating prompt.";
+          asset.image_data = null;
+          needsUpdate = true;
+        }
+      }
+    }
+  };
+
+  // 3. Traverse the DB Document's Stem
+  if (dbDocument.Stem && dbDocument.Stem.assets) {
+    await processAssetsArray(dbDocument.Stem.assets);
+  }
+
+  // 4. Traverse the DB Document's Parts (for Structured Questions)
+  if (savedQuestionObj.Question_Type === "Structured_Question") {
+    // Cast to any locally to bypass the strict Mongoose Document union type
+    const structuredDoc = dbDocument as any; 
+    
+    if (structuredDoc.Parts && Array.isArray(structuredDoc.Parts)) {
+      for (const part of structuredDoc.Parts) {
+        if (part.assets) {
+          await processAssetsArray(part.assets);
+        }
+      }
+    }
+  }
+
+  // 5. Save the valid Mongoose document
+  if (needsUpdate) {
+    dbDocument.markModified('Stem.assets');
+    
+    // Use the string check to safely isolate the Structured Question logic
+    if (savedQuestionObj.Question_Type === "Structured_Question") {
+      dbDocument.markModified('Parts');
+    }
+    
+    await dbDocument.save();
+  }
+};
+
 router.post('/questions', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { blueprint } = req.body;
 
@@ -160,7 +324,7 @@ router.post('/questions', requireAuth, async (req: Request, res: Response): Prom
       let retries = 0;
       const maxRetries = 3;
       let success = false;
-      let questionData = null;
+      let questionData: Record<string, any> | null = null;
 
       // 3. Exponential Backoff Loop
       while (!success && retries < maxRetries) {
@@ -195,9 +359,18 @@ router.post('/questions', requireAuth, async (req: Request, res: Response): Prom
             }
 
             // 3. Parse and merge with blueprint metadata
-            const parsedQuestion = JSON.parse(content);
+            let parsedQuestion = JSON.parse(content);
 
+            // 4. Save the base question immediately (Fast return for the text)
             questionData = await QuestionService.saveGeneratedQuestion(item, parsedQuestion);
+
+            // 5. Fire off the background task for visual assets without awaiting it
+            // This prevents blocking the loop for the next question
+            if (questionData) {
+                processVisualAssetsInBackground(questionData, sendEvent).catch(err => 
+                    console.error(`Background asset processing failed for question ${questionData?._id}:`, err)
+                );
+            }
             
             success = true; 
         } catch (error: any) {
