@@ -1,12 +1,11 @@
 // server/src/server.ts
+import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 
-// Load environment variables from the .env file
-dotenv.config();
+import authRoutes from './routes/auth.routes.js';
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +19,9 @@ app.use(cors({
 }));
 app.use(express.json()); // Parses incoming JSON payloads
 app.use(cookieParser()); // Parses cookies for JWT authentication
+
+app.use('/api/auth', authRoutes);
+
 
 // ==========================================
 // Database Connection
