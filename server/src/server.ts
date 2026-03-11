@@ -6,6 +6,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
 import authRoutes from './routes/auth.routes.js';
+import generateRoutes from './routes/generate.routes.js';
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use(express.json()); // Parses incoming JSON payloads
 app.use(cookieParser()); // Parses cookies for JWT authentication
 
 app.use('/api/auth', authRoutes);
+app.use('/api/generate', generateRoutes);
 
 
 // ==========================================

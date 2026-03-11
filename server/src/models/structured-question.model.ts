@@ -1,3 +1,4 @@
+// server/src/models/structured-question.model.ts
 import mongoose, { Schema, Document } from 'mongoose';
 import { AssetSchema } from './asset.schema.js';
 
