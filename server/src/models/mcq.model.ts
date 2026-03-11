@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { AssetSchema } from './asset.schema';
+import { AssetSchema } from './asset.schema.js';
 
 export const MCQSchema = new Schema({
   Question_Type: { 
@@ -15,7 +15,7 @@ export const MCQSchema = new Schema({
   },
   Stem: {
     text: { type: String, required: true },
-    assets: [AssetSchema] // <-- Imported and applied cleanly!
+    assets: [AssetSchema] 
   },
   Options: [{
     label: { type: String, enum: ['A', 'B', 'C', 'D'], required: true },

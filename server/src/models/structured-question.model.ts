@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { AssetSchema } from './asset.schema';
+import { AssetSchema } from './asset.schema.js';
 
 // Helper schema for the strict markscheme arrays
 const MarkschemePointSchema = new Schema({

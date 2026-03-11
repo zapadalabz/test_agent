@@ -1,7 +1,7 @@
-export { User} from './user.model.ts';
-export { Syllabus, Theme, Topic, Understanding } from './syllabus.model.ts';
-export { StaticAsset } from './static-asset.model';
-export { MCQ } from './mcq.model.ts';
-export { StructuredQuestion } from './structured-question.model.ts';
-export { Test } from './test.model.ts';
-export { TestVersion } from './test-version.model.ts';
+export { User} from './user.model.js';
+export { Syllabus, Theme, Topic, Understanding } from './syllabus.model.js';
+export { StaticAsset } from './static-asset.model.js';
+export { MCQ } from './mcq.model.js';
+export { StructuredQuestion } from './structured-question.model.js';
+export { Test } from './test.model.js';
+export { TestVersion } from './test-version.model.js';
