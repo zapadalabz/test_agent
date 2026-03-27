@@ -83,14 +83,7 @@ router.post('/blueprint', requireAuth, async (req: Request, res: Response): Prom
         { role: "system", content: BASE_CONTEXT },
         { role: "user", content: userPrompt }
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "test_blueprint_schema",
-          strict: true,
-          schema: testBlueprintResponseFormat as any,
-        }
-      }
+      response_format: testBlueprintResponseFormat as any
     });
 
     const content = response.choices[0]?.message.content;

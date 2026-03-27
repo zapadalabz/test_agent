@@ -1,0 +1,270 @@
+// src/components/BlueprintReview.tsx
+import React, { useState } from 'react';
+import { useTestContext, type LayoutItem } from '../context/TestContext';
+import { MCQRenderer } from './MCQRenderer';
+import { StructuredQuestionRenderer } from './StructuredQuestionRenderer';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+interface GenerationStatus {
+  status: 'idle' | 'generating' | 'complete' | 'error';
+  message: string;
+  progressText: string;
+  generatedQuestions: any[];
+}
+
+export const BlueprintReview = () => {
+  const { blueprint, budgetMismatch, setBlueprint, layout, setLayout } = useTestContext();
+  const [genState, setGenState] = useState<GenerationStatus>({
+    status: 'idle',
+    message: '',
+    progressText: '',
+    generatedQuestions: []
+  });
+
+  // Calculate the current total marks in the blueprint
+  const totalMarks = blueprint.reduce((sum, item) => sum + item.marks, 0);
+
+  const startGeneration = async () => {
+    setGenState({ status: 'generating', message: 'Connecting to server...', progressText: '', generatedQuestions: [] });
+
+    try {
+      const response = await fetch(`${API_URL}/api/generate/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ blueprint })
+      });
+
+      if (!response.body) throw new Error('ReadableStream not supported by the browser.');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      // Read the stream chunk by chunk
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        // SSE messages are separated by double newlines
+        const parts = buffer.split('\n\n');
+        // Keep the last incomplete chunk in the buffer
+        buffer = parts.pop() || ''; 
+
+        for (const part of parts) {
+          const lines = part.split('\n');
+          let eventType = 'message';
+          let eventData = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event:')) eventType = line.slice(6).trim();
+            if (line.startsWith('data:')) eventData = line.slice(5).trim();
+          }
+
+          if (eventData) {
+            const parsedData = JSON.parse(eventData);
+            handleSSEEvent(eventType, parsedData);
+          }
+        }
+      }
+    } catch (error: any) {
+      setGenState(prev => ({ ...prev, status: 'error', message: error.message || 'Stream failed.' }));
+    }
+  };
+
+  // Handle the specific events emitted by your generate.routes.ts
+  const handleSSEEvent = (event: string, data: any) => {
+    switch (event) {
+      case 'status':
+      case 'warning':
+        setGenState(prev => ({ ...prev, message: data.message }));
+        break;
+      case 'progress':
+        setGenState(prev => ({ ...prev, progressText: data.message }));
+        break;
+      case 'question_ready':
+        setGenState(prev => ({
+          ...prev,
+          generatedQuestions: [...prev.generatedQuestions, data.question]
+        }));
+        break;
+      case 'image_processing_started':
+      case 'image_prompt_ready':
+      case 'image_generation_started':
+      case 'image_upload_started':
+      case 'image_ready':
+        // For now, just log background asset events or show a toast
+        console.log(`[Asset Update] ${event}:`, data);
+        break;
+      case 'complete':
+        setGenState(prev => ({
+          ...prev,
+          status: 'complete',
+          message: 'All questions generated successfully!',
+          progressText: '',
+          // Use the final results array sent by the backend
+          generatedQuestions: data.results 
+        }));
+
+        // Auto-populate the layout sidebar!
+        const initialLayout: LayoutItem[] = data.results.map((q: any, idx: number) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          itemType: 'Question',
+          itemId: q._id,
+          itemModel: q.Question_Type === 'MCQ' ? 'MCQ' : 'StructuredQuestion',
+          title: `Question ${idx + 1} (${q.Question_Type.replace('_', ' ')})`
+        }));
+        setLayout(initialLayout);
+
+        break;
+      case 'error':
+        setGenState(prev => ({ ...prev, status: 'error', message: data.message }));
+        break;
+      default:
+        console.log('Unknown event:', event, data);
+    }
+  };
+
+  if (!blueprint || blueprint.length === 0) {
+    return null; // Don't render if there's no blueprint yet
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md mt-8 mb-12">
+      <h2 className="text-2xl font-bold mb-4 text-gray-800">Review Test Blueprint</h2>
+
+      {budgetMismatch && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <h3 className="text-red-800 font-bold mb-1">Mark Budget Mismatch Detected!</h3>
+          <p className="text-red-700 text-sm">
+            The AI generated a test worth <strong>{totalMarks} marks</strong>, which differs from your requested budget. 
+            Please review the allocations below. You can proceed with generation, or generate a new blueprint.
+          </p>
+        </div>
+      )}
+
+      {/* Blueprint Table */}
+      <div className="overflow-x-auto mb-8">
+        <table className="min-w-full divide-y divide-gray-200 border">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Topic</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Style</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {blueprint.map((item, idx) => (
+              <tr key={idx}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.question_number}</td>
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.topic}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Question_Type.replace('_', ' ')}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Style}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">{item.marks}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-gray-50 font-bold">
+            <tr>
+              <td colSpan={4} className="px-6 py-3 text-right">Total Generated Marks:</td>
+              <td className={`px-6 py-3 ${budgetMismatch ? 'text-red-600' : 'text-green-600'}`}>
+                {totalMarks}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Generation Controls & Status */}
+      <div className="bg-gray-50 p-6 rounded-md border border-gray-200">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800">Generate Questions</h3>
+            <p className="text-sm text-gray-500">This process will take a few moments. Do not refresh the page.</p>
+          </div>
+          <button
+            onClick={startGeneration}
+            disabled={genState.status === 'generating' || genState.status === 'complete'}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded disabled:opacity-50"
+          >
+            {genState.status === 'generating' ? 'Generating...' : 'Start Generator'}
+          </button>
+        </div>
+
+        {/* Live SSE Updates */}
+        {genState.status !== 'idle' && (
+          <div className="mt-4 p-4 bg-white border rounded shadow-inner">
+            <p className="font-semibold text-blue-600">{genState.message}</p>
+            {genState.progressText && <p className="text-sm text-gray-600 mt-1">{genState.progressText}</p>}
+            
+            <div className="mt-4">
+              <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">Questions Ready: {genState.generatedQuestions.length} / {blueprint.length}</span>
+              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+                  style={{ width: `${(genState.generatedQuestions.length / blueprint.length) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {genState.status === 'error' && (
+          <p className="mt-4 text-red-600 font-bold">{genState.message}</p>
+        )}
+      </div>
+      
+      {/* Render Generated Questions Once Complete */}
+      {genState.status === 'complete' && layout.length > 0 && (
+        <div className="mt-12 border-t pt-8 w-full">
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">Generated Exam Draft</h2>
+          
+          <div className="space-y-6">
+            {layout.map((item, index) => {
+              
+              // 1. Handle Questions
+              if (item.itemType === 'Question') {
+                // Look up the actual question data using the ID saved in the layout item
+                const q = genState.generatedQuestions.find(gq => gq._id === item.itemId);
+                
+                if (!q) return null; // Fallback if data is missing
+                
+                if (q.Question_Type === 'MCQ') {
+                  return <MCQRenderer key={item.id} questionNumber={index + 1} questionData={q} />;
+                } else if (q.Question_Type === 'Structured_Question') {
+                  return <StructuredQuestionRenderer key={item.id} questionNumber={index + 1} questionData={q} />;
+                }
+              } 
+              
+              // 2. Handle Blank Pages
+              else if (item.itemType === 'BlankPage') {
+                return (
+                  <div key={item.id} className="bg-white p-6 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center h-48 shadow-sm">
+                    <span className="text-gray-400 font-bold tracking-widest uppercase">[ Blank Page ]</span>
+                  </div>
+                );
+              } 
+              
+              // 3. Handle PDF Static Assets (Cover Pages, Formula Sheets)
+              else if (item.itemType === 'StaticAsset') {
+                return (
+                  <div key={item.id} className="bg-orange-50 p-6 border border-orange-200 rounded-lg flex flex-col items-center justify-center h-48 shadow-sm">
+                    <span className="text-orange-500 font-bold mb-2">PDF Asset Placeholder</span>
+                    <span className="text-orange-800 font-semibold">{item.title}</span>
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
