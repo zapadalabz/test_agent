@@ -4,6 +4,7 @@ import { useTestContext, type LayoutItem } from '../context/TestContext';
 import { MCQRenderer } from './MCQRenderer';
 import { StructuredQuestionRenderer } from './StructuredQuestionRenderer';
 import { ManualJSONImport } from './ManualJSONImport';
+import { generateLatex } from '../utils/latexExport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -68,6 +69,26 @@ export const BlueprintReview = () => {
   // Print function:
   const handlePrint = () => {
     window.print();
+  };
+
+  // Export to .tex function:
+  const handleExportLatex = () => {
+    const title = testMetadata?.title || "Exam Draft";
+    
+    // Notice we don't pass the imageMap here, so it triggers the fallback!
+    const latexString = generateLatex(layout, generatedQuestions, title);
+    
+    // Create a Blob and trigger a download
+    const blob = new Blob([latexString], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.download = `${title.replace(/\s+/g, '_')}_Draft.tex`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const startGeneration = async () => {
@@ -331,6 +352,11 @@ export const BlueprintReview = () => {
               <button onClick={saveTest} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">
                 Save Test
               </button>
+
+              <button onClick={handleExportLatex} className="bg-purple-600 text-white px-4 py-2 rounded font-bold hover:bg-purple-700">
+                Export .tex
+              </button>
+
               <button onClick={handlePrint} className="bg-gray-800 text-white px-4 py-2 rounded font-bold hover:bg-gray-900">
                 Export PDF
               </button>
