@@ -2,14 +2,14 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
 
 // Define the shape of our state based on your backend schemas
-interface TestMetadata {
+export interface TestMetadata {
   _id?: string;
   title: string;
   subject: string;
   gradeLevel: string;
 }
 
-interface BlueprintItem {
+export interface BlueprintItem {
   question_number: number;
   topic: string;
   Question_Type: string;
@@ -36,6 +36,12 @@ interface TestContextType {
   setBudgetMismatch: (mismatch: boolean) => void;
   layout: LayoutItem[];
   setLayout: React.Dispatch<React.SetStateAction<LayoutItem[]>>;
+  
+  // NEW EXPORTS: Needed for Print Layout and Loading Saved Tests
+  viewMode: 'student' | 'teacher';
+  setViewMode: (mode: 'student' | 'teacher') => void;
+  generatedQuestions: any[];
+  setGeneratedQuestions: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const TestContext = createContext<TestContextType | undefined>(undefined);
@@ -46,6 +52,10 @@ export const TestProvider = ({ children }: { children: ReactNode }) => {
   const [blueprint, setBlueprint] = useState<BlueprintItem[]>([]);
   const [budgetMismatch, setBudgetMismatch] = useState<boolean>(false);
   const [layout, setLayout] = useState<LayoutItem[]>([]);
+  
+  // NEW STATE: Print View Mode and Global Questions Array
+  const [viewMode, setViewMode] = useState<'student' | 'teacher'>('teacher');
+  const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
 
   return (
     <TestContext.Provider 
@@ -55,6 +65,8 @@ export const TestProvider = ({ children }: { children: ReactNode }) => {
         blueprint, setBlueprint,
         budgetMismatch, setBudgetMismatch,
         layout, setLayout,
+        viewMode, setViewMode,
+        generatedQuestions, setGeneratedQuestions
       }}
     >
       {children}

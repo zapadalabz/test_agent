@@ -2,6 +2,7 @@
 import React from 'react';
 import { AssetRenderer } from './assets/AssetRenderer';
 import Latex from 'react-latex-next';
+import { useTestContext } from '../context/TestContext';
 
 interface StructuredProps {
   questionNumber: number;
@@ -10,6 +11,7 @@ interface StructuredProps {
 
 export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ questionNumber, questionData }) => {
   const { Stem, Parts, Markscheme } = questionData;
+  const { viewMode } = useTestContext();
 
   // Helper to find the markscheme points for a specific part
   const getMarkschemeForPart = (partLabel: string) => {
@@ -18,7 +20,7 @@ export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ question
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 break-inside-avoid print:border-none print:p-2">
       {/* Header */}
       <div className="flex justify-between items-center mb-4 border-b pb-2">
         <h3 className="font-bold text-lg text-gray-800">Question {questionNumber}</h3>
@@ -64,23 +66,25 @@ export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ question
             )}
 
             {/* Teacher Markscheme for this Part */}
-            <div className="ml-8 mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
-              <span className="font-bold text-green-800 text-sm block mb-2 border-b border-green-200 pb-1">Markscheme:</span>
-              <ul className="list-disc pl-5 space-y-1">
-                {getMarkschemeForPart(part.part_label).map((point: any, pIdx: number) => (
-                  <li key={pIdx} className="text-sm">
-                    <span className="text-green-900"><Latex>{point.text}</Latex></span>
-                    <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                      point.point_type === 'Mandatory' ? 'bg-green-200 text-green-800' :
-                      point.point_type === 'Alternative (OWTTE)' ? 'bg-blue-200 text-blue-800' :
-                      'bg-red-200 text-red-800' // For DNA (Do Not Accept)
-                    }`}>
-                      {point.point_type === 'Alternative (OWTTE)' ? 'OWTTE' : point.point_type === 'Do Not Accept (DNA)' ? 'DNA' : 'Mandatory'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {viewMode === 'teacher' && (
+              <div className="ml-8 mt-3 p-3 bg-green-50 border border-green-200 rounded-md print:bg-white print:border-gray-400">
+                <span className="font-bold text-green-800 text-sm block mb-2 border-b border-green-200 pb-1">Markscheme:</span>
+                <ul className="list-disc pl-5 space-y-1">
+                  {getMarkschemeForPart(part.part_label).map((point: any, pIdx: number) => (
+                    <li key={pIdx} className="text-sm">
+                      <span className="text-green-900"><Latex>{point.text}</Latex></span>
+                      <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                        point.point_type === 'Mandatory' ? 'bg-green-200 text-green-800' :
+                        point.point_type === 'Alternative (OWTTE)' ? 'bg-blue-200 text-blue-800' :
+                        'bg-red-200 text-red-800' // For DNA (Do Not Accept)
+                      }`}>
+                        {point.point_type === 'Alternative (OWTTE)' ? 'OWTTE' : point.point_type === 'Do Not Accept (DNA)' ? 'DNA' : 'Mandatory'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -1,6 +1,7 @@
 // src/components/MCQRenderer.tsx
 import React from 'react';
 import { AssetRenderer } from './assets/AssetRenderer';
+import { useTestContext } from '../context/TestContext';
 import Latex from 'react-latex-next';
 
 interface MCQProps {
@@ -10,9 +11,10 @@ interface MCQProps {
 
 export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }) => {
   const { Stem, Options, Correct_Answer, Distractor_Rationale, AO_Level } = questionData;
+  const { viewMode } = useTestContext();
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 break-inside-avoid print:border-none print:p-2">
       {/* Header */}
       <div className="flex justify-between items-center mb-4 border-b pb-2">
         <h3 className="font-bold text-lg text-gray-800">Question {questionNumber}</h3>
@@ -43,16 +45,18 @@ export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }
       </div>
 
       {/* Teacher Markscheme / Rationale View */}
-      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-        <div className="flex items-center mb-2">
-          <span className="font-bold text-yellow-800 mr-2">Key:</span>
-          <span className="font-extrabold text-lg text-green-700">{Correct_Answer}</span>
+      {viewMode === 'teacher' && (
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md print:bg-white print:border-gray-400">
+          <div className="flex items-center mb-2">
+            <span className="font-bold text-yellow-800 mr-2">Key:</span>
+            <span className="font-extrabold text-lg text-green-700">{Correct_Answer}</span>
+          </div>
+          <div>
+            <span className="font-bold text-yellow-800 text-sm block mb-1">Distractor Rationale:</span>
+            <p className="text-sm text-yellow-900 italic"><Latex>{Distractor_Rationale}</Latex></p>
+          </div>
         </div>
-        <div>
-          <span className="font-bold text-yellow-800 text-sm block mb-1">Distractor Rationale:</span>
-          <p className="text-sm text-yellow-900 italic"><Latex>{Distractor_Rationale}</Latex></p>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

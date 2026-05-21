@@ -15,12 +15,9 @@ interface GenerationStatus {
 }
 
 export const BlueprintReview = () => {
-  const { blueprint, budgetMismatch, setBlueprint, layout, setLayout } = useTestContext();
-  const [genState, setGenState] = useState<GenerationStatus>({
-    status: 'idle',
-    message: '',
-    progressText: '',
-    generatedQuestions: []
+  const { blueprint, budgetMismatch, setBlueprint, layout, setLayout, activeVersionId, testMetadata, viewMode, setViewMode, generatedQuestions, setGeneratedQuestions } = useTestContext();
+  const [genState, setGenState] = useState<{status: string, message: string, progressText: string}>({
+    status: 'idle', message: '', progressText: ''
   });
 
   const [copiedRowId, setCopiedRowId] = useState<number | null>(null);
@@ -51,8 +48,31 @@ export const BlueprintReview = () => {
   // Calculate the current total marks in the blueprint
   const totalMarks = blueprint.reduce((sum, item) => sum + item.marks, 0);
 
+  // Save function:
+  const saveTest = async () => {
+    if (!testMetadata?._id || !activeVersionId) return alert('No active test to save.');
+    
+    try {
+      const res = await fetch(`${API_URL}/api/tests/${testMetadata._id}/versions/${activeVersionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ layout })
+      });
+      if (res.ok) alert('Test saved successfully!');
+    } catch (error) {
+      console.error('Failed to save:', error);
+    }
+  };
+
+  // Print function:
+  const handlePrint = () => {
+    window.print();
+  };
+
   const startGeneration = async () => {
-    setGenState({ status: 'generating', message: 'Connecting to server...', progressText: '', generatedQuestions: [] });
+    setGenState({ status: 'generating', message: 'Connecting to server...', progressText: '' });
+    setGeneratedQuestions([]);
 
     try {
       const response = await fetch(`${API_URL}/api/generate/questions`, {
@@ -112,10 +132,7 @@ export const BlueprintReview = () => {
         setGenState(prev => ({ ...prev, progressText: data.message }));
         break;
       case 'question_ready':
-        setGenState(prev => ({
-          ...prev,
-          generatedQuestions: [...prev.generatedQuestions, data.question]
-        }));
+        setGeneratedQuestions(prev => [...prev, data.question]);
         break;
       case 'image_processing_started':
       case 'image_prompt_ready':
@@ -126,14 +143,8 @@ export const BlueprintReview = () => {
         console.log(`[Asset Update] ${event}:`, data);
         break;
       case 'complete':
-        setGenState(prev => ({
-          ...prev,
-          status: 'complete',
-          message: 'All questions generated successfully!',
-          progressText: '',
-          // Use the final results array sent by the backend
-          generatedQuestions: data.results 
-        }));
+        setGenState({ status: 'complete', message: 'Success!', progressText: '' });
+        setGeneratedQuestions(data.results);
 
         // Auto-populate the layout sidebar!
         const initialLayout: LayoutItem[] = data.results.map((q: any, idx: number) => ({
@@ -162,9 +173,9 @@ export const BlueprintReview = () => {
     // 1. Add to local state so the renderer can find the text, and flip status to 'complete' if it was idle
     setGenState(prev => ({
       ...prev,
-      status: prev.status === 'idle' ? 'complete' : prev.status, 
-      generatedQuestions: [...prev.generatedQuestions, newQuestion]
+      status: prev.status === 'idle' ? 'complete' : prev.status
     }));
+    setGeneratedQuestions(prev => [...prev, newQuestion]);
 
     // 2. Add to sidebar layout
     setLayout(prev => [...prev, {
@@ -177,131 +188,162 @@ export const BlueprintReview = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md mt-8 mb-12">
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">Review Test Blueprint</h2>
+    <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md mt-8 mb-12 print:shadow-none print:p-0 print:m-0">
+      <div className="print:hidden">
+        <h2 className="text-2xl font-bold mb-4 text-gray-800">Review Test Blueprint</h2>
 
-      {budgetMismatch && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-          <h3 className="text-red-800 font-bold mb-1">Mark Budget Mismatch Detected!</h3>
-          <p className="text-red-700 text-sm">
-            The AI generated a test worth <strong>{totalMarks} marks</strong>, which differs from your requested budget. 
-            Please review the allocations below. You can proceed with generation, or generate a new blueprint.
-          </p>
-        </div>
-      )}
+        {budgetMismatch && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <h3 className="text-red-800 font-bold mb-1">Mark Budget Mismatch Detected!</h3>
+            <p className="text-red-700 text-sm">
+              The AI generated a test worth <strong>{totalMarks} marks</strong>, which differs from your requested budget. 
+              Please review the allocations below. You can proceed with generation, or generate a new blueprint.
+            </p>
+          </div>
+        )}
 
-      {/* Blueprint Table */}
-      <div className="overflow-x-auto mb-8">
-        <table className="min-w-full divide-y divide-gray-200 border">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Topic</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Style</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {blueprint.map((item, idx) => (
-              <tr key={idx}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.question_number}</td>
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.topic}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Question_Type.replace('_', ' ')}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Style}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">{item.marks}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button 
-                    onClick={() => handleCopyPrompt(item, idx)}
-                    title="Copy AI prompt to clipboard"
-                    aria-label="Copy AI prompt for this specific question to your clipboard"
-                    className={`p-2 rounded inline-flex items-center justify-center transition-colors ${
-                      copiedRowId === idx 
-                        ? 'bg-green-100 text-green-700 border border-green-300' 
-                        : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    {copiedRowId === idx ? (
-                      // Checkmark Icon
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    ) : (
-                      // Clipboard Icon
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                      </svg>
-                    )}
-                  </button>
+        {/* Blueprint Table */}
+        <div className="overflow-x-auto mb-8">
+          <table className="min-w-full divide-y divide-gray-200 border">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Topic</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Style</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {blueprint.map((item, idx) => (
+                <tr key={idx}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.question_number}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.topic}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Question_Type.replace('_', ' ')}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Style}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">{item.marks}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button 
+                      onClick={() => handleCopyPrompt(item, idx)}
+                      title="Copy AI prompt to clipboard"
+                      aria-label="Copy AI prompt for this specific question to your clipboard"
+                      className={`p-2 rounded inline-flex items-center justify-center transition-colors ${
+                        copiedRowId === idx 
+                          ? 'bg-green-100 text-green-700 border border-green-300' 
+                          : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                      }`}
+                    >
+                      {copiedRowId === idx ? (
+                        // Checkmark Icon
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      ) : (
+                        // Clipboard Icon
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                        </svg>
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-50 font-bold">
+              <tr>
+                <td colSpan={4} className="px-6 py-3 text-right">Total Generated Marks:</td>
+                <td className={`px-6 py-3 ${budgetMismatch ? 'text-red-600' : 'text-green-600'}`}>
+                  {totalMarks}
                 </td>
               </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-gray-50 font-bold">
-            <tr>
-              <td colSpan={4} className="px-6 py-3 text-right">Total Generated Marks:</td>
-              <td className={`px-6 py-3 ${budgetMismatch ? 'text-red-600' : 'text-green-600'}`}>
-                {totalMarks}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {/* Generation Controls & Status */}
-      <div className="bg-gray-50 p-6 rounded-md border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-800">Generate Questions</h3>
-            <p className="text-sm text-gray-500">This process will take a few moments. Do not refresh the page.</p>
-          </div>
-          <button
-            onClick={startGeneration}
-            disabled={genState.status === 'generating' || genState.status === 'complete'}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded disabled:opacity-50"
-          >
-            {genState.status === 'generating' ? 'Generating...' : 'Start Generator'}
-          </button>
+            </tfoot>
+          </table>
         </div>
 
-        {/* Live SSE Updates */}
-        {genState.status !== 'idle' && (
-          <div className="mt-4 p-4 bg-white border rounded shadow-inner">
-            <p className="font-semibold text-blue-600">{genState.message}</p>
-            {genState.progressText && <p className="text-sm text-gray-600 mt-1">{genState.progressText}</p>}
-            
-            <div className="mt-4">
-              <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">Questions Ready: {genState.generatedQuestions.length} / {blueprint.length}</span>
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-                  style={{ width: `${(genState.generatedQuestions.length / blueprint.length) * 100}%` }}
-                ></div>
+        {/* Generation Controls & Status */}
+        <div className="bg-gray-50 p-6 rounded-md border border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Generate Questions</h3>
+              <p className="text-sm text-gray-500">This process will take a few moments. Do not refresh the page.</p>
+            </div>
+            <button
+              onClick={startGeneration}
+              disabled={genState.status === 'generating' || genState.status === 'complete'}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded disabled:opacity-50"
+            >
+              {genState.status === 'generating' ? 'Generating...' : 'Start Generator'}
+            </button>
+          </div>
+
+          {/* Live SSE Updates */}
+          {genState.status !== 'idle' && (
+            <div className="mt-4 p-4 bg-white border rounded shadow-inner">
+              <p className="font-semibold text-blue-600">{genState.message}</p>
+              {genState.progressText && <p className="text-sm text-gray-600 mt-1">{genState.progressText}</p>}
+              
+              <div className="mt-4">
+                <span className="text-xs font-bold uppercase text-gray-500 tracking-wider">
+                  Questions Ready: {generatedQuestions.length} / {blueprint.length}
+                </span>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+                    style={{ width: `${(generatedQuestions.length / blueprint.length) * 100}%` }}
+                  ></div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {genState.status === 'error' && (
-          <p className="mt-4 text-red-600 font-bold">{genState.message}</p>
-        )}
+          {genState.status === 'error' && (
+            <p className="mt-4 text-red-600 font-bold">{genState.message}</p>
+          )}
+        </div>
+        
+        <ManualJSONImport onImportSuccess={handleManualImportSuccess}/>
       </div>
-      
-      <ManualJSONImport onImportSuccess={handleManualImportSuccess}/>
 
       {/* Render Generated Questions Once Complete */}
-      {(genState.status === 'complete' || genState.generatedQuestions.length > 0) && layout.length > 0 && (
-        <div className="mt-12 border-t pt-8 w-full">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">Generated Exam Draft</h2>
+      {(genState.status === 'complete' || generatedQuestions.length > 0) && layout.length > 0 && (
+        <div className="mt-12 border-t pt-8 w-full print:border-none print:mt-0 print:pt-0">
+          <div className="flex justify-between items-center mb-6 no-print">
+            <h2 className="text-2xl font-bold text-gray-800">Generated Exam Draft</h2>
+            
+            <div className="flex gap-4 items-center">
+              {/* View Toggle */}
+              <div className="bg-gray-100 p-1 rounded flex">
+                <button 
+                  onClick={() => setViewMode('student')}
+                  className={`px-3 py-1 text-sm rounded ${viewMode === 'student' ? 'bg-white shadow font-bold' : 'text-gray-600'}`}
+                >
+                  Student View
+                </button>
+                <button 
+                  onClick={() => setViewMode('teacher')}
+                  className={`px-3 py-1 text-sm rounded ${viewMode === 'teacher' ? 'bg-white shadow font-bold' : 'text-gray-600'}`}
+                >
+                  Teacher View
+                </button>
+              </div>
+
+              <button onClick={saveTest} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">
+                Save Test
+              </button>
+              <button onClick={handlePrint} className="bg-gray-800 text-white px-4 py-2 rounded font-bold hover:bg-gray-900">
+                Export PDF
+              </button>
+            </div>
+          </div>
           
-          <div className="space-y-6">
+          <div className="print-area space-y-6">
             {layout.map((item, index) => {
               
               // 1. Handle Questions
               if (item.itemType === 'Question') {
                 // Look up the actual question data using the ID saved in the layout item
-                const q = genState.generatedQuestions.find(gq => gq._id === item.itemId);
+                const q = generatedQuestions.find(gq => gq._id === item.itemId);
                 
                 if (!q) return null; // Fallback if data is missing
                 
@@ -315,8 +357,8 @@ export const BlueprintReview = () => {
               // 2. Handle Blank Pages
               else if (item.itemType === 'BlankPage') {
                 return (
-                  <div key={item.id} className="bg-white p-6 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center h-48 shadow-sm">
-                    <span className="text-gray-400 font-bold tracking-widest uppercase">[ Blank Page ]</span>
+                  <div key={item.id} className="bg-white p-6 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center h-48 shadow-sm page-break-after print:border-none print:h-screen">
+                    <span className="text-gray-400 font-bold tracking-widest uppercase no-print">[ Blank Page ]</span>
                   </div>
                 );
               } 

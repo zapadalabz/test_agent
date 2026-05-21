@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+@media print {
+  body {
+    background-color: white !important;
+  }
+  
+  /* Hide the sidebar, headers, and UI controls during print */
+  .no-print, header, .w-72 { 
+    display: none !important; 
+  }
+  
+  /* Ensure the print area takes up the full width */
+  .print-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Force blank pages/assets to start on a new page and break after */
+  .page-break-after {
+    page-break-after: always;
+  }
+}
