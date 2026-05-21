@@ -402,4 +402,43 @@ router.post('/questions', requireAuth, async (req: Request, res: Response): Prom
   }
 });
 
+router.post('/import', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const questionData = req.body;
+
+    if (!questionData || !questionData.Question_Type) {
+      res.status(400).json({ message: 'Invalid JSON: Missing Question_Type' });
+      return;
+    }
+
+    let savedQuestion;
+
+    // 1. Save to the correct Mongoose Collection
+    if (questionData.Question_Type === "MCQ") {
+      savedQuestion = await MCQ.create(questionData);
+    } else if (questionData.Question_Type === "Structured_Question") {
+      savedQuestion = await StructuredQuestion.create(questionData);
+    } else {
+      res.status(400).json({ message: `Unsupported Question Type: ${questionData.Question_Type}` });
+      return;
+    }
+
+    // 2. Fire off the background visual asset processor!
+    // We pass a dummy 'sendEvent' function since this isn't an active SSE stream
+    processVisualAssetsInBackground(savedQuestion, (event, data) => {
+      console.log(`[Import Background Asset Event] ${event}`);
+    }).catch(err => console.error("Asset processing failed during import:", err));
+
+    // 3. Return the saved document so the frontend can render it
+    res.status(201).json({ 
+      message: 'Question imported successfully!', 
+      question: savedQuestion 
+    });
+
+  } catch (error: any) {
+    console.error('Import Error:', error);
+    res.status(500).json({ message: 'Failed to import question', error: error.message });
+  }
+});
+
 export default router;

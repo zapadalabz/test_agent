@@ -2,6 +2,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import 'katex/dist/katex.min.css';
 import './index.css';
 import App from './App.tsx';
 import { TestProvider } from './context/TestContext.tsx';

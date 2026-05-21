@@ -1,10 +1,11 @@
 // src/components/MCQRenderer.tsx
 import React from 'react';
 import { AssetRenderer } from './assets/AssetRenderer';
+import Latex from 'react-latex-next';
 
 interface MCQProps {
   questionNumber: number;
-  questionData: any; // We'll use 'any' for now, but you can import your strict types later
+  questionData: any; 
 }
 
 export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }) => {
@@ -22,7 +23,7 @@ export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }
 
       {/* Stem */}
       <div className="mb-4 text-gray-800 text-base leading-relaxed">
-        {Stem.text}
+        <Latex>{Stem.text}</Latex>
         {/* Assets */}
         {Stem.assets && Stem.assets.length > 0 && (
           <div className="my-3 p-3 bg-gray-50 border border-dashed border-gray-300 text-center text-sm text-gray-500">
@@ -36,7 +37,7 @@ export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }
         {Options.map((opt: any, idx: number) => (
           <div key={idx} className="flex items-start">
             <span className="font-bold mr-3 text-gray-700">{opt.label}.</span>
-            <span className="text-gray-800">{opt.text}</span>
+            <span className="text-gray-800"><Latex>{opt.text}</Latex></span>
           </div>
         ))}
       </div>
@@ -49,7 +50,7 @@ export const MCQRenderer: React.FC<MCQProps> = ({ questionNumber, questionData }
         </div>
         <div>
           <span className="font-bold text-yellow-800 text-sm block mb-1">Distractor Rationale:</span>
-          <p className="text-sm text-yellow-900 italic">{Distractor_Rationale}</p>
+          <p className="text-sm text-yellow-900 italic"><Latex>{Distractor_Rationale}</Latex></p>
         </div>
       </div>
     </div>

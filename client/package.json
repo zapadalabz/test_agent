@@ -13,9 +13,11 @@
     "@react-oauth/google": "^0.13.4",
     "@tailwindcss/vite": "^4.2.1",
     "chart.js": "^4.5.1",
+    "katex": "^0.16.47",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-latex-next": "^3.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

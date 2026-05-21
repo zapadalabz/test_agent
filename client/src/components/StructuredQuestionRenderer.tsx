@@ -1,6 +1,7 @@
 // src/components/StructuredQuestionRenderer.tsx
 import React from 'react';
 import { AssetRenderer } from './assets/AssetRenderer';
+import Latex from 'react-latex-next';
 
 interface StructuredProps {
   questionNumber: number;
@@ -28,7 +29,7 @@ export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ question
 
       {/* Main Stem */}
       <div className="mb-6 text-gray-800 text-base leading-relaxed font-medium">
-        {Stem.text}
+        <Latex>{Stem.text}</Latex>
         {/* Assets */}
         {Stem.assets && Stem.assets.length > 0 && (
           <div className="my-3 p-3 bg-gray-50 border border-dashed border-gray-300 text-center text-sm text-gray-500">
@@ -47,7 +48,7 @@ export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ question
                 <span className="font-bold mr-3 text-gray-700">({part.part_label})</span>
                 <span className="text-gray-800">
                   <span className="font-semibold mr-1">{part.command_term}</span>
-                  {part.text}
+                  <Latex>{part.text}</Latex>
                 </span>
               </div>
               <span className="font-bold text-gray-500 whitespace-nowrap">
@@ -68,7 +69,7 @@ export const StructuredQuestionRenderer: React.FC<StructuredProps> = ({ question
               <ul className="list-disc pl-5 space-y-1">
                 {getMarkschemeForPart(part.part_label).map((point: any, pIdx: number) => (
                   <li key={pIdx} className="text-sm">
-                    <span className="text-green-900">{point.text}</span>
+                    <span className="text-green-900"><Latex>{point.text}</Latex></span>
                     <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
                       point.point_type === 'Mandatory' ? 'bg-green-200 text-green-800' :
                       point.point_type === 'Alternative (OWTTE)' ? 'bg-blue-200 text-blue-800' :

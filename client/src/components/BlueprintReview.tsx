@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useTestContext, type LayoutItem } from '../context/TestContext';
 import { MCQRenderer } from './MCQRenderer';
 import { StructuredQuestionRenderer } from './StructuredQuestionRenderer';
+import { ManualJSONImport } from './ManualJSONImport';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -21,6 +22,31 @@ export const BlueprintReview = () => {
     progressText: '',
     generatedQuestions: []
   });
+
+  const [copiedRowId, setCopiedRowId] = useState<number | null>(null);
+
+  const handleCopyPrompt = (item: any, idx: number) => {
+    const isMCQ = item.Question_Type === 'MCQ';
+    const schemaFile = isMCQ ? 'mcq.schema.ts' : 'structured-question.schema.ts';
+    const promptFunc = isMCQ ? 'getMCQPrompt' : 'getStructuredPrompt';
+
+    const promptText = `**Task:** Generate a ${item.marks}-mark ${item.Question_Type.replace('_', ' ')} about ${item.topic}.
+
+      **References & Style:**
+      1. Use the BASE_CONTEXT and ${promptFunc} logic from the prompts.ts file. 
+      2. Analyze the 'Past Papers' folder to match the exact difficulty, tone, and formatting of official IB physics questions.
+
+      **Strict Output Rules:**
+      1. Schema Match: Output the result strictly matching the JSON schema defined in ${schemaFile}.
+      2. Command Terms: You MUST ONLY use the allowed command terms from the schema.
+      3. Format: Output the response entirely inside a single \`\`\`json code block. Do not include conversational text.
+      4. No Escaped Markdown: Output raw LaTeX (e.g., $v_{max}$). Do not escape underscores or brackets (NO \\_ or \\[).`;
+
+      navigator.clipboard.writeText(promptText).then(() => {
+        setCopiedRowId(idx);
+        setTimeout(() => setCopiedRowId(null), 2000); // Reset after 2 seconds
+      });
+    };
 
   // Calculate the current total marks in the blueprint
   const totalMarks = blueprint.reduce((sum, item) => sum + item.marks, 0);
@@ -111,7 +137,7 @@ export const BlueprintReview = () => {
 
         // Auto-populate the layout sidebar!
         const initialLayout: LayoutItem[] = data.results.map((q: any, idx: number) => ({
-          id: Math.random().toString(36).substr(2, 9),
+          id: Math.random().toString(36).substring(2, 11),
           itemType: 'Question',
           itemId: q._id,
           itemModel: q.Question_Type === 'MCQ' ? 'MCQ' : 'StructuredQuestion',
@@ -131,6 +157,24 @@ export const BlueprintReview = () => {
   if (!blueprint || blueprint.length === 0) {
     return null; // Don't render if there's no blueprint yet
   }
+
+  const handleManualImportSuccess = (newQuestion: any) => {
+    // 1. Add to local state so the renderer can find the text, and flip status to 'complete' if it was idle
+    setGenState(prev => ({
+      ...prev,
+      status: prev.status === 'idle' ? 'complete' : prev.status, 
+      generatedQuestions: [...prev.generatedQuestions, newQuestion]
+    }));
+
+    // 2. Add to sidebar layout
+    setLayout(prev => [...prev, {
+      id: Math.random().toString(36).substring(2, 11),
+      itemType: 'Question',
+      itemId: newQuestion._id,
+      itemModel: newQuestion.Question_Type === 'MCQ' ? 'MCQ' : 'StructuredQuestion',
+      title: `Imported ${newQuestion.Question_Type === 'MCQ' ? 'MCQ' : 'FRQ'}`
+    }]);
+  };
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md mt-8 mb-12">
@@ -156,6 +200,7 @@ export const BlueprintReview = () => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Style</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -166,6 +211,30 @@ export const BlueprintReview = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Question_Type.replace('_', ' ')}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.Style}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">{item.marks}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button 
+                    onClick={() => handleCopyPrompt(item, idx)}
+                    title="Copy AI prompt to clipboard"
+                    aria-label="Copy AI prompt for this specific question to your clipboard"
+                    className={`p-2 rounded inline-flex items-center justify-center transition-colors ${
+                      copiedRowId === idx 
+                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                        : 'bg-white text-blue-600 border border-blue-300 hover:bg-blue-50'
+                    }`}
+                  >
+                    {copiedRowId === idx ? (
+                      // Checkmark Icon
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    ) : (
+                      // Clipboard Icon
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                      </svg>
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -219,8 +288,10 @@ export const BlueprintReview = () => {
         )}
       </div>
       
+      <ManualJSONImport onImportSuccess={handleManualImportSuccess}/>
+
       {/* Render Generated Questions Once Complete */}
-      {genState.status === 'complete' && layout.length > 0 && (
+      {(genState.status === 'complete' || genState.generatedQuestions.length > 0) && layout.length > 0 && (
         <div className="mt-12 border-t pt-8 w-full">
           <h2 className="text-2xl font-bold mb-6 text-gray-800">Generated Exam Draft</h2>
           

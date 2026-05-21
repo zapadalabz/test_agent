@@ -7,7 +7,7 @@ export const DocumentLayoutSidebar = () => {
   const [showAssetManager, setShowAssetManager] = useState(false);
 
   // Helper to generate a random ID for UI keys
-  const generateId = () => Math.random().toString(36).substr(2, 9);
+  const generateId = () => Math.random().toString(36).substring(2, 11);
 
   const addBlankPage = () => {
     setLayout(prev => [...prev, {
