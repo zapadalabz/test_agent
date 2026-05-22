@@ -25,6 +25,7 @@ export const BlueprintReview = () => {
   });
 
   const [copiedRowId, setCopiedRowId] = useState<number | null>(null);
+  const [exportMarkscheme, setExportMarkscheme] = useState<boolean>(false);
 
   const handleCopyPrompt = (item: any, idx: number) => {
     const isMCQ = item.Question_Type === 'MCQ';
@@ -155,8 +156,8 @@ export const BlueprintReview = () => {
         }
       }
 
-      // 4. Generate the LaTeX string using the populated imageMap
-      const latexString = generateLatex(layout, generatedQuestions, title, imageMap);
+      // 4. Generate the LaTeX string using the populated imageMap and passing the markscheme toggle
+      const latexString = generateLatex(layout, generatedQuestions, title, imageMap, exportMarkscheme);
       
       // 5. Add the .tex file to the root of the ZIP
       zip.file(`${title.replace(/\s+/g, '_')}_Draft.tex`, latexString);
@@ -436,6 +437,16 @@ export const BlueprintReview = () => {
                   Teacher View
                 </button>
               </div>
+
+              <label className="flex items-center space-x-2 text-sm text-gray-700 bg-gray-100 px-3 py-2 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={exportMarkscheme}
+                  onChange={(e) => setExportMarkscheme(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                />
+                <span className="font-semibold">Include Markscheme</span>
+              </label>
 
               <button onClick={saveTest} className="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">
                 Save Test

@@ -4,7 +4,8 @@ export const generateLatex = (
   layout: any[], 
   generatedQuestions: any[], 
   title: string = "Exam Draft",
-  imageMap?: Map<string, string> // Map for local zip paths
+  imageMap?: Map<string, string>, // Map for local zip paths
+  includeMarkscheme: boolean = false
 ): string => {
   let tex = `\\documentclass[11pt, addpoints]{exam}
 \\usepackage[utf8]{inputenc}
@@ -47,10 +48,10 @@ export const generateLatex = (
 \\begin{flushleft}
 
 % --- Logo and Header ---
-\includegraphics[width=6.0cm]{BHlogo.png}
+\\includegraphics[width=6.0cm]{BHlogo.png}
 
-{\large \textbf{FINAL EXAMINATION JUNE 2026}}
-\vspace{1cm}
+{\\large \\textbf{FINAL EXAMINATION JUNE 2026}}
+\\vspace{1cm}
 
 % --- Meta Information ---
 \\renewcommand{\\arraystretch}{1.5}
@@ -293,6 +294,14 @@ Number of Pages in exam: & \\textbf{(not including cover sheet)} \\\\
           tex += `  \\choice ${cleanTextForLatex(opt.text)}\\vspace{0.2cm}\n`;
         });
         tex += `\\end{choices}\n\n`;
+
+        // Inject Markscheme for MCQ
+        if (includeMarkscheme) {
+          tex += `\\vspace{0.5cm}\n`;
+          tex += `\\noindent\\textbf{Markscheme:}\\\\\n`;
+          tex += `\\textbf{Correct Answer: ${q.Correct_Answer}}\\\\\n`;
+          tex += `\\textit{Rationale:} ${cleanTextForLatex(q.Distractor_Rationale)}\n\n`;
+        }
       } 
       else if (q.Question_Type === 'Structured_Question') {
         tex += `\\question\n${cleanTextForLatex(q.Stem.text)}\n\n`;
@@ -323,6 +332,23 @@ Number of Pages in exam: & \\textbf{(not including cover sheet)} \\\\
           tex += `  }\n\n`;
         });
         tex += `\\end{parts}\n\n`;
+
+        // Inject Markscheme for Structured Question
+        if (includeMarkscheme && q.Markscheme && q.Markscheme.length > 0) {
+          tex += `\\vspace{0.5cm}\n`;
+          tex += `\\noindent\\textbf{Markscheme:}\n`;
+          tex += `\\begin{itemize}\n`;
+          q.Markscheme.forEach((ms: any) => {
+            tex += `  \\item \\textbf{Part (${ms.part_label}):}\n`;
+            tex += `  \\begin{itemize}\n`;
+            ms.points.forEach((point: any) => {
+              let pointLabel = point.point_type === 'Alternative (OWTTE)' ? '[OWTTE]' : point.point_type === 'Do Not Accept (DNA)' ? '[DNA]' : '';
+              tex += `    \\item ${cleanTextForLatex(point.text)} ${pointLabel ? `\\textbf{${pointLabel}}` : ''}\n`;
+            });
+            tex += `  \\end{itemize}\n`;
+          });
+          tex += `\\end{itemize}\n\n`;
+        }
       }
     }
   });
