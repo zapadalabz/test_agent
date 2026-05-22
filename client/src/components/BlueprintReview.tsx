@@ -5,6 +5,7 @@ import { MCQRenderer } from './MCQRenderer';
 import { StructuredQuestionRenderer } from './StructuredQuestionRenderer';
 import { ManualJSONImport } from './ManualJSONImport';
 import { generateLatex } from '../utils/latexExport';
+import JSZip from 'jszip';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -72,23 +73,90 @@ export const BlueprintReview = () => {
   };
 
   // Export to .tex function:
-  const handleExportLatex = () => {
+  const handleExportLatex = async () => {
     const title = testMetadata?.title || "Exam Draft";
     
-    // Notice we don't pass the imageMap here, so it triggers the fallback!
-    const latexString = generateLatex(layout, generatedQuestions, title);
-    
-    // Create a Blob and trigger a download
-    const blob = new Blob([latexString], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    link.href = url;
-    link.download = `${title.replace(/\s+/g, '_')}_Draft.tex`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // 1. Initialize JSZip and an images folder
+    const zip = new JSZip();
+    const imageFolder = zip.folder("images");
+    const imageMap = new Map<string, string>();
+    let imageCounter = 1;
+
+    setGenState(prev => ({ ...prev, status: 'generating', message: 'Bundling LaTeX and Images into ZIP...' }));
+
+    // 2. Helper to fetch image blobs and map them for LaTeX
+    const processAssets = async (assets: any[]) => {
+      if (!assets || assets.length === 0) return;
+      
+      for (const asset of assets) {
+        if (asset.type === 'image' && asset.image_data && asset.image_data.startsWith('http')) {
+          // Prevent downloading the same image twice
+          if (!imageMap.has(asset.image_data)) {
+            try {
+              const response = await fetch(asset.image_data);
+              const blob = await response.blob();
+              
+              // Extract extension from mime type (default to png)
+              const ext = blob.type.split('/')[1] || 'png';
+              const filename = `image_${imageCounter++}.${ext}`;
+              
+              // Add to the "images" folder inside the zip
+              imageFolder?.file(filename, blob);
+              
+              // Map the original URL to the relative local path for the LaTeX file
+              imageMap.set(asset.image_data, `images/${filename}`);
+            } catch (error) {
+              console.error(`Failed to fetch image: ${asset.image_data}`, error);
+            }
+          }
+        }
+      }
+    };
+
+    try {
+      // 3. Traverse the layout to find all images in questions and parts
+      for (const item of layout) {
+        if (item.itemType === 'Question') {
+          const q = generatedQuestions.find(gq => gq._id === item.itemId);
+          if (q) {
+            // Process Main Stem Assets
+            if (q.Stem && q.Stem.assets) {
+              await processAssets(q.Stem.assets);
+            }
+            // Process Part Assets (for Structured Questions)
+            if (q.Parts) {
+              for (const part of q.Parts) {
+                if (part.assets) {
+                  await processAssets(part.assets);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 4. Generate the LaTeX string using the populated imageMap
+      const latexString = generateLatex(layout, generatedQuestions, title, imageMap);
+      
+      // 5. Add the .tex file to the root of the ZIP
+      zip.file(`${title.replace(/\s+/g, '_')}_Draft.tex`, latexString);
+
+      // 6. Generate the ZIP blob and trigger the browser download
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/\s+/g, '_')}_LaTeX_Export.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setGenState(prev => ({ ...prev, status: 'complete', message: 'ZIP exported successfully!' }));
+    } catch (error: any) {
+      console.error('ZIP Export Error:', error);
+      setGenState(prev => ({ ...prev, status: 'error', message: 'Failed to export ZIP.' }));
+    }
   };
 
   const startGeneration = async () => {

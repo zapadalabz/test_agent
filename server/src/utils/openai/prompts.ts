@@ -50,10 +50,13 @@ RULES FOR GENERATION:
 1. Mark Budget: You are allocated exactly ${marks} marks. The sum of all parts must equal this number.
 2. Scaffolding: Where the mark budget permits, progress logically from AO1 to AO2, concluding with AO3.
 3. Markscheme: For a question worth N marks, provide exactly N independent 'Mandatory' or 'Alternative' scientifically scoring points. Categorize each point strictly as "Mandatory", "Alternative (OWTTE)", or "Do Not Accept (DNA)" to guide the examiner. You should anticipate common student errors and explicitly include them as "Do Not Accept (DNA)", which do not count toward the N mark limit.
-4. Style Instructions:
+4. Command Terms & Text: The 'command_term' field MUST be separated from the text. DO NOT repeat the command term inside the 'text' field. 
+    - INCORRECT: "command_term": "Calculate", "text": "Calculate the height of the cliff."
+    - CORRECT: "command_term": "Calculate", "text": "the height of the cliff."
+5. Style Instructions:
    - If Style is "Data-Based Question": The stem MUST include a realistic experimental scenario and a "table" or "plot" asset. The questions must rely on this data. 
    - If Style is "Standard Free-Response": Use "image" assets only if visually required to explain the physical scenario.
-5. Output Format: Output strictly in JSON matching this schema: 
+6. Output Format: Output strictly in JSON matching this schema: 
 
 {
   "Question_Type": "Structured_Question",
@@ -92,7 +95,6 @@ RULES FOR GENERATION:
   ]
 }`;
 
-// Added this based on your plan for Phase 4 so you have it ready!
 export const getVisualAssetPrompt = (imageDataString: string) => `ROLE: Technical Science Illustrator for an exam board.
 TASK: Convert the provided description of an exam diagram into an optimized prompt for an AI image generator.
 INPUT DESCRIPTION: ${imageDataString}
