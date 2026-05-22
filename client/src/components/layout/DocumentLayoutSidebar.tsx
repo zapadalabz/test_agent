@@ -86,22 +86,33 @@ export const DocumentLayoutSidebar = () => {
               <div className="space-y-2 mb-6">
                 <button 
                   onClick={() => {
+                    // Use [new, ...prev] to inject covers at the START of the document
+                    setLayout(prev => [{ id: generateId(), itemType: 'StaticAsset', title: 'Exam Coverpage 2026' }, ...prev]);
+                    setShowAssetManager(false);
+                  }}
+                  className="w-full text-left p-3 border rounded hover:bg-orange-50 flex justify-between items-center"
+                >
+                  <span className="font-medium">Exam Coverpage 2026</span>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Cover</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setLayout(prev => [{ id: generateId(), itemType: 'StaticAsset', title: 'Test Cover Sheet (with Rubric)' }, ...prev]);
+                    setShowAssetManager(false);
+                  }}
+                  className="w-full text-left p-3 border rounded hover:bg-orange-50 flex justify-between items-center"
+                >
+                  <span className="font-medium">Test Cover Sheet (with Rubric)</span>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Cover</span>
+                </button>
+                <button 
+                  onClick={() => {
                     setLayout(prev => [...prev, { id: generateId(), itemType: 'StaticAsset', title: 'IB Biology Data Booklet' }]);
                     setShowAssetManager(false);
                   }}
                   className="w-full text-left p-3 border rounded hover:bg-orange-50 flex justify-between items-center"
                 >
                   <span className="font-medium">IB Biology Data Booklet</span>
-                  <span className="text-xs bg-gray-200 px-2 py-1 rounded">Shared</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    setLayout(prev => [...prev, { id: generateId(), itemType: 'StaticAsset', title: 'Standard Cover Page' }]);
-                    setShowAssetManager(false);
-                  }}
-                  className="w-full text-left p-3 border rounded hover:bg-orange-50 flex justify-between items-center"
-                >
-                  <span className="font-medium">Standard Cover Page</span>
                   <span className="text-xs bg-gray-200 px-2 py-1 rounded">Shared</span>
                 </button>
               </div>

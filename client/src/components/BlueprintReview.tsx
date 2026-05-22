@@ -7,6 +7,8 @@ import { ManualJSONImport } from './ManualJSONImport';
 import { generateLatex } from '../utils/latexExport';
 import JSZip from 'jszip';
 
+import bhLogoUrl from '../utils/static/BHlogo.png';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 interface GenerationStatus {
@@ -83,6 +85,24 @@ export const BlueprintReview = () => {
     let imageCounter = 1;
 
     setGenState(prev => ({ ...prev, status: 'generating', message: 'Bundling LaTeX and Images into ZIP...' }));
+
+    // Check if the specific cover page that requires the logo is in the layout
+    const includesExamCover = layout.some(item => 
+      item.itemType === 'StaticAsset' && item.title === 'Exam Coverpage 2026'
+    );
+
+    // Only fetch and bundle the logo if the cover page was selected
+    if (includesExamCover) {
+      try {
+        const logoRes = await fetch(bhLogoUrl);
+        if (logoRes.ok) {
+          const logoBlob = await logoRes.blob();
+          zip.file("BHlogo.png", logoBlob); 
+        }
+      } catch (error) {
+        console.error("Failed to load BHlogo.png into the ZIP:", error);
+      }
+    }
 
     // 2. Helper to fetch image blobs and map them for LaTeX
     const processAssets = async (assets: any[]) => {
