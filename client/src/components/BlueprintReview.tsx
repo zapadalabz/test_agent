@@ -59,7 +59,7 @@ export const BlueprintReview = () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ layout })
+        body: JSON.stringify({ layout, blueprint })
       });
       if (res.ok) alert('Test saved successfully!');
     } catch (error) {
@@ -254,8 +254,8 @@ export const BlueprintReview = () => {
     }
   };
 
-  if (!blueprint || blueprint.length === 0) {
-    return null; // Don't render if there's no blueprint yet
+  if ((!blueprint || blueprint.length === 0) && (!layout || layout.length === 0)) {
+    return null; 
   }
 
   const handleManualImportSuccess = (newQuestion: any) => {

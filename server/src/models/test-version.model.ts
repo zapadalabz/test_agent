@@ -11,6 +11,15 @@ export const TestVersionSchema = new Schema({
     required: true 
   }, // e.g., "Version A", "Make-up Exam"
   
+  // Store the blueprint configuration
+  blueprint: [{
+    question_number: Number,
+    topic: String,
+    Question_Type: String,
+    Style: String,
+    marks: Number
+  }],
+
   // High-level array holding references to the specific questions generated for this version 
   questions: [{
     questionId: { 
@@ -26,18 +35,20 @@ export const TestVersionSchema = new Schema({
   
   // Defines the sequence of the test document for the frontend rendering 
   layout: [{
+    id: { type: String }, // React UI id
+    title: { type: String }, // Display title for sidebar
     itemType: { 
       type: String, 
       enum: ['Question', 'StaticAsset', 'BlankPage'], 
       required: true 
-    }, // Can be a Question, a PDF Asset, or a purely Blank Page 
+    },
     itemId: { 
       type: Schema.Types.ObjectId 
-    }, // Nullable: Blank pages don't need an ID, but Questions and Assets do 
+    }, 
     itemModel: { 
       type: String, 
       enum: ['MCQ', 'StructuredQuestion', 'StaticAsset'] 
-    } // Required for Mongoose dynamic population to know which collection to pull from 
+    } 
   }]
 }, { timestamps: true });
 

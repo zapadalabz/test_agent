@@ -12,7 +12,7 @@ export const generateLatex = (
 \\usepackage{graphicx}
 \\usepackage{enumitem}
 \\usepackage{geometry}
-\\usepackage{pgfplots} % Added to natively render line/scatter/bar charts
+\\usepackage{pgfplots} % Native line/scatter/bar charts
 \\pgfplotsset{compat=1.18}
 \\geometry{a4paper, margin=1in}
 
@@ -96,11 +96,9 @@ export const generateLatex = (
                }
             }
             
-            // NEW: Native PGFPlots generation for JSON chart data
             if (asset.type === 'plot' && asset.plot_data) {
                 const p = asset.plot_data;
                 
-                // Format the (x, y) coordinates for LaTeX
                 let coords = '';
                 for(let i = 0; i < p.x_data.length; i++) {
                   coords += `(${p.x_data[i]}, ${p.y_data[i]}) `;
@@ -111,11 +109,15 @@ export const generateLatex = (
                 assetTex += `\\begin{axis}[\n`;
                 assetTex += `    xlabel={${cleanTextForLatex(p.x_label)}},\n`;
                 assetTex += `    ylabel={${cleanTextForLatex(p.y_label)}},\n`;
+                assetTex += `    width=0.7\\textwidth,\n`;
+                assetTex += `    height=7.5cm,\n`;
+                assetTex += `    axis lines=left,\n`; 
+                assetTex += `    enlargelimits=true,\n`;
+                // --- Authentic IB Graph Paper Styling ---
                 assetTex += `    grid=both,\n`;
-                assetTex += `    width=0.6\\textwidth,\n`;
-                assetTex += `    height=6.5cm,\n`;
-                assetTex += `    axis lines=left,\n`; // Gives it that textbook feel
-                assetTex += `    enlargelimits=true\n`; 
+                assetTex += `    minor tick num=4,\n`; // 5 subdivisions between major ticks
+                assetTex += `    major grid style={line width=.6pt, draw=black!40},\n`; // Darker major lines
+                assetTex += `    minor grid style={line width=.3pt, draw=black!15}\n`;  // Fainter minor lines
                 assetTex += `]\n`;
                 
                 if (p.chart_type === 'scatter') {
@@ -123,7 +125,6 @@ export const generateLatex = (
                 } else if (p.chart_type === 'bar') {
                     assetTex += `\\addplot[ybar, fill=black!20] coordinates {\n    ${coords}\n};\n`;
                 } else {
-                    // Default to line chart
                     assetTex += `\\addplot[color=black, mark=*, thick] coordinates {\n    ${coords}\n};\n`;
                 }
                 
